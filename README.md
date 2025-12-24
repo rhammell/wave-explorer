@@ -1,9 +1,10 @@
-# wave-explorer
-Interactive visualization of wave superposition and interference patterns using D3.js
-=======
 # Wave Explorer
 
 Interactive visualization of wave superposition and interference patterns using D3.js.
+
+Developed with GPT-5.1 Codex Max
+
+Live demo: https://rhammell.github.io/wave-explorer/
 
 ## Features
 - Add unlimited sine waves with individual amplitude, frequency, and phase controls.
