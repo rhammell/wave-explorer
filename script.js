@@ -2,7 +2,9 @@
 const X_MIN = 0;
 const X_MAX = 4 * Math.PI;
 const POINTS = 300; // Resolution of the line
-const MARGIN = { top: 30, right: 40, bottom: 30, left: 50 };
+const PREVIEW_POINTS = 200; // Preview resolution (higher for smoother high-frequency previews)
+const MARGIN = { top: 30, right: 50, bottom: 30, left: 50 }; // symmetric horizontal margins to center plot
+const PREVIEW_INSET = 10; // left/right padding for preview lines
 
 // State
 let waves = [];
@@ -74,6 +76,7 @@ function init() {
     // Resize observer for responsive chart
     window.addEventListener('resize', () => {
         updateAll();
+        updateAllPreviews(); // keep preview widths in sync when layout changes
     });
     
     // Initial draw
@@ -178,6 +181,10 @@ function renderWaveCard(wave) {
     updateWavePreview(wave);
 }
 
+function updateAllPreviews() {
+    waves.forEach(w => updateWavePreview(w));
+}
+
 function addControl(card, wave, label, property, min, max, step) {
     const group = card.append("div").attr("class", "control-group");
     const labelEl = group.append("label");
@@ -207,10 +214,14 @@ function updateWavePreview(wave) {
     
     container.html(""); // Clear
 
-    const rect = container.node().getBoundingClientRect();
-    const width = rect.width;
+    const node = container.node();
+    const rect = node.getBoundingClientRect();
+    const style = getComputedStyle(node);
+    const borderX = parseFloat(style.borderLeftWidth) + parseFloat(style.borderRightWidth);
+    const width = rect.width - borderX;
     const height = 60; // Fixed height from CSS
-    const margin = 5;
+    const margin = 0;  // Zero margin to test edge-to-edge rendering
+    if (!width || width <= 0) return; // guard against zero width during layout transitions
 
     const svg = container.append("svg")
         .attr("width", width)
@@ -218,17 +229,22 @@ function updateWavePreview(wave) {
 
     const xScale = d3.scaleLinear()
         .domain([X_MIN, X_MAX])
-        .range([margin, width - margin]);
+        .range([PREVIEW_INSET, width - PREVIEW_INSET]);
 
     // Fixed Y scale for preview to show relative amplitude changes
     const yScale = d3.scaleLinear()
         .domain([-5, 5]) 
         .range([height - margin, margin]);
 
-    const data = d3.range(X_MIN, X_MAX, (X_MAX - X_MIN) / 50).map(x => ({
-        x,
-        y: wave.amplitude * Math.sin(wave.frequency * x + wave.phase)
-    }));
+    // Evenly spaced samples including exact endpoints to avoid overshoot
+    const data = d3.range(PREVIEW_POINTS).map(i => {
+        const t = i / (PREVIEW_POINTS - 1);
+        const x = X_MIN + t * (X_MAX - X_MIN);
+        return {
+            x,
+            y: wave.amplitude * Math.sin(wave.frequency * x + wave.phase)
+        };
+    });
 
     const line = d3.line()
         .x(d => xScale(d.x))
@@ -263,7 +279,8 @@ function updateAll() {
         .range([0, innerWidth]);
 
     // Calculate Data
-    const data = d3.range(X_MIN, X_MAX, (X_MAX - X_MIN) / POINTS).map(x => {
+    const step = (X_MAX - X_MIN) / (POINTS - 1);
+    const data = d3.range(X_MIN, X_MAX + step / 2, step).map(x => {
         let y = 0;
         waves.forEach(w => {
             y += w.amplitude * Math.sin(w.frequency * x + w.phase);
@@ -318,6 +335,9 @@ function updateAll() {
         .attr("fill", "#888")
         .style("font-size", "14px")
         .text(`Superposition of ${waves.length} wave${waves.length !== 1 ? 's' : ''}`);
+
+    // Keep previews aligned with current layout width
+    updateAllPreviews();
 }
 
 // Start application
