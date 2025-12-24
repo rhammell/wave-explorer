@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wave Explorer</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+<body>
+    <div id="app">
+        <aside id="sidebar">
+            <h1>Wave Explorer</h1>
+            
+            <div class="preset-controls">
+                <label for="preset-select">Presets:</label>
+                <select id="preset-select">
+                    <option value="custom">Custom</option>
+                    <option value="square">Square Wave</option>
+                    <option value="sawtooth">Sawtooth Wave</option>
+                    <option value="triangle">Triangle Wave</option>
+                </select>
+            </div>
+
+            <button id="add-wave-btn">Add Sine Wave</button>
+            <div id="wave-list">
+                <!-- Wave controls will be added here -->
+            </div>
+        </aside>
+        <main id="main-stage">
+            <div id="plot-container"></div>
+        </main>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>

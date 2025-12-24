@@ -1,0 +1,10 @@
+.DS_Store
+
+.vscode/
+.idea/
+*.code-workspace
+.cursor/
+
+node_modules/
+dist/
+
