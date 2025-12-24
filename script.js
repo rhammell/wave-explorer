@@ -87,7 +87,7 @@ function resetPresetSelect() {
 function clearWaves() {
     waves = [];
     waveList.html("");
-    // nextId = 1; // Optional: reset IDs or keep incrementing
+    nextId = 1; // Reset numbering when all waves are cleared
     updateAll();
 }
 
@@ -139,6 +139,9 @@ function removeWave(id) {
     waves = waves.filter(w => w.id !== id);
     d3.select(`#wave-${id}`).remove();
     resetPresetSelect();
+    if (waves.length === 0) {
+        nextId = 1; // Reset numbering when no waves remain
+    }
     updateAll();
 }
 
