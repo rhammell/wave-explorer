@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # wave-explorer
 Interactive visualization of wave superposition and interference patterns using D3.js
 =======
@@ -35,5 +34,3 @@ python3 -m http.server 8000
 
 ## License
 GPL-3.0
-
->>>>>>> f23fba2 (Initial commit)
