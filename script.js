@@ -218,9 +218,10 @@ function updateWavePreview(wave) {
     const rect = node.getBoundingClientRect();
     const style = getComputedStyle(node);
     const borderX = parseFloat(style.borderLeftWidth) + parseFloat(style.borderRightWidth);
+    const borderY = parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
     const width = rect.width - borderX;
-    const height = 60; // Fixed height from CSS
-    const margin = 0;  // Zero margin to test edge-to-edge rendering
+    const height = rect.height - borderY; // use inner height to keep vertical inset symmetric
+    const marginY = 5; // Top/bottom inset to keep stroke off edges
     if (!width || width <= 0) return; // guard against zero width during layout transitions
 
     const svg = container.append("svg")
@@ -234,7 +235,7 @@ function updateWavePreview(wave) {
     // Fixed Y scale for preview to show relative amplitude changes
     const yScale = d3.scaleLinear()
         .domain([-5, 5]) 
-        .range([height - margin, margin]);
+        .range([height - marginY, marginY]);
 
     // Evenly spaced samples including exact endpoints to avoid overshoot
     const data = d3.range(PREVIEW_POINTS).map(i => {
