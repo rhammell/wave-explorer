@@ -31,6 +31,14 @@ body {
     overflow-y: auto;
 }
 
+/* Hide scrollbar while keeping scrollability */
+#sidebar {
+    scrollbar-width: none; /* Firefox */
+}
+#sidebar::-webkit-scrollbar {
+    display: none; /* Chrome/Safari/Edge */
+}
+
 #main-stage {
     flex-grow: 1;
     position: relative;
