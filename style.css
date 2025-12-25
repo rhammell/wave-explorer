@@ -6,6 +6,12 @@
     --border-color: #444;
 }
 
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
 body {
     margin: 0;
     padding: 0;
@@ -22,7 +28,7 @@ body {
 }
 
 #sidebar {
-    width: 350px;
+    width: 390px;
     background-color: var(--sidebar-bg);
     border-right: 1px solid var(--border-color);
     display: flex;

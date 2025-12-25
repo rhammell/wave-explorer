@@ -171,7 +171,7 @@ function renderWaveCard(wave) {
     // Controls
     addControl(card, wave, "Amplitude", "amplitude", 0, 5, 0.01);
     addControl(card, wave, "Frequency", "frequency", 0.1, 10, 0.1);
-    addControl(card, wave, "Phase", "phase", 0, 2 * Math.PI, 0.1);
+    addControl(card, wave, "Phase", "phase", 0, 2 * Math.PI, 0.01);
 
     // Preview Plot Container
     card.append("div")
@@ -299,7 +299,9 @@ function updateAll() {
         .range([innerHeight, 0]);
 
     // Axes
+    const xTicks = d3.range(X_MIN, X_MAX + Math.PI / 4, Math.PI / 2); // 0, π/2, π, ...
     const xAxis = d3.axisBottom(xScale)
+        .tickValues(xTicks)
         .tickFormat(d => (d / Math.PI).toFixed(1) + "π");
         
     svg.append("g")
