@@ -16,6 +16,8 @@ const colors = [
     '#DDA0DD', '#F0E68C', '#87CEFA'
 ];
 
+const PI_SYM = 'π';
+
 // Presets
 const PRESETS = {
     square: {
@@ -171,7 +173,8 @@ function renderWaveCard(wave) {
     // Controls
     addControl(card, wave, "Amplitude", "amplitude", 0, 5, 0.01);
     addControl(card, wave, "Frequency", "frequency", 0.1, 10, 0.1);
-    addControl(card, wave, "Phase", "phase", 0, 2 * Math.PI, 0.01);
+    // Phase: 0 to 2π with 0.01π increments
+    addControl(card, wave, "Phase", "phase", 0, 2 * Math.PI, Math.PI / 100);
 
     // Preview Plot Container
     card.append("div")
@@ -189,7 +192,13 @@ function addControl(card, wave, label, property, min, max, step) {
     const group = card.append("div").attr("class", "control-group");
     const labelEl = group.append("label");
     labelEl.append("span").text(label);
-    const valueDisplay = labelEl.append("span").text(wave[property].toFixed(2));
+    const formatVal = (prop, val) => {
+        if (prop === "phase") {
+            return (val / Math.PI).toFixed(2) + PI_SYM;
+        }
+        return val.toFixed(2);
+    };
+    const valueDisplay = labelEl.append("span").text(formatVal(property, wave[property]));
     
     group.append("input")
         .attr("type", "range")
@@ -200,7 +209,7 @@ function addControl(card, wave, label, property, min, max, step) {
         .on("input", function() {
             const val = parseFloat(this.value);
             wave[property] = val;
-            valueDisplay.text(val.toFixed(2));
+            valueDisplay.text(formatVal(property, val));
             updateWavePreview(wave);
             resetPresetSelect(); // Changing a value makes it custom
             updateAll();
@@ -302,7 +311,7 @@ function updateAll() {
     const xTicks = d3.range(X_MIN, X_MAX + Math.PI / 4, Math.PI / 2); // 0, π/2, π, ...
     const xAxis = d3.axisBottom(xScale)
         .tickValues(xTicks)
-        .tickFormat(d => (d / Math.PI).toFixed(1) + "π");
+        .tickFormat(d => (d / Math.PI).toFixed(1) + PI_SYM);
         
     svg.append("g")
         .attr("class", "axis")
