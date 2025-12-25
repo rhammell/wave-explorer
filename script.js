@@ -1,28 +1,46 @@
 // Configuration
-const X_MIN = 0;
-const X_MAX = 4 * Math.PI;
-const POINTS = 300; // Resolution of the line
-const PREVIEW_POINTS = 200; // Preview resolution (higher for smoother high-frequency previews)
-const MARGIN = { top: 30, right: 50, bottom: 30, left: 50 }; // symmetric horizontal margins to center plot
-const PREVIEW_INSET = 10; // left/right padding for preview lines
+const CONFIG = {
+    X_MIN: 0,
+    X_MAX: 4 * Math.PI,
+    POINTS: 300,
+    PREVIEW_POINTS: 200,
+    MARGIN: { top: 30, right: 50, bottom: 30, left: 50 },
+    PREVIEW_INSET: 10,
+    PREVIEW_Y_MARGIN: 5,
+    PI_SYM: 'π'
+};
 
-// State
-let waves = [];
-let nextId = 1;
+// State Management
+const state = {
+    waves: [],
+    nextId: 1,
+    colors: [
+        '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98FB98', 
+        '#DDA0DD', '#F0E68C', '#87CEFA'
+    ]
+};
 
-// Colors for waves
-const colors = [
-    '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98FB98', 
-    '#DDA0DD', '#F0E68C', '#87CEFA'
-];
-
-const PI_SYM = 'π';
+// Math Helpers
+const WaveMath = {
+    calcY: (wave, x) => wave.amplitude * Math.sin(wave.frequency * x + wave.phase),
+    
+    generatePoints: (waveList, numPoints) => {
+        return d3.range(numPoints).map(i => {
+            const t = i / (numPoints - 1);
+            const x = CONFIG.X_MIN + t * (CONFIG.X_MAX - CONFIG.X_MIN);
+            let y = 0;
+            waveList.forEach(w => {
+                y += WaveMath.calcY(w, x);
+            });
+            return { x, y };
+        });
+    }
+};
 
 // Presets
 const PRESETS = {
     square: {
         name: "Square Wave",
-        // Sum of odd harmonics: sin(x) + sin(3x)/3 + sin(5x)/5 + ...
         generate: () => [
             { amplitude: 1.0, frequency: 1.0, phase: 0 },
             { amplitude: 1/3, frequency: 3.0, phase: 0 },
@@ -32,325 +50,218 @@ const PRESETS = {
     },
     sawtooth: {
         name: "Sawtooth Wave",
-        // Sum of all harmonics: sin(x) - sin(2x)/2 + sin(3x)/3 - ...
-        // Note: For simplicity here we just do + with phase shift or alternating signs via amplitude
         generate: () => [
             { amplitude: 1.0, frequency: 1.0, phase: 0 },
-            { amplitude: 0.5, frequency: 2.0, phase: 0 }, // Simplified, usually alternating signs
+            { amplitude: 0.5, frequency: 2.0, phase: 0 },
             { amplitude: 0.33, frequency: 3.0, phase: 0 },
             { amplitude: 0.25, frequency: 4.0, phase: 0 }
         ]
     },
     triangle: {
         name: "Triangle Wave",
-        // Sum of odd harmonics with alternating signs and inverse square amplitudes
         generate: () => [
             { amplitude: 1.0, frequency: 1.0, phase: 0 },
-            { amplitude: 1/9, frequency: 3.0, phase: Math.PI }, // Alternating sign via phase shift or negative amp
+            { amplitude: 1/9, frequency: 3.0, phase: Math.PI },
             { amplitude: 1/25, frequency: 5.0, phase: 0 },
             { amplitude: 1/49, frequency: 7.0, phase: Math.PI }
         ]
     }
 };
 
-// Selectors
-const mainPlotContainer = d3.select("#plot-container");
-const waveList = d3.select("#wave-list");
-const presetSelect = document.getElementById("preset-select");
+// DOM Selectors
+const selectors = {
+    mainPlot: d3.select("#plot-container"),
+    waveList: d3.select("#wave-list"),
+    presetSelect: document.getElementById("preset-select"),
+    addBtn: document.getElementById('add-wave-btn')
+};
 
-// Initialize
+// Initialization
 function init() {
-    addWave(); // Add one default wave
+    addWave();
     
-    document.getElementById('add-wave-btn').addEventListener('click', () => {
+    selectors.addBtn.addEventListener('click', () => {
         addWave();
         resetPresetSelect();
     });
     
-    // Preset listener
-    presetSelect.addEventListener('change', (e) => {
+    selectors.presetSelect.addEventListener('change', (e) => {
         const value = e.target.value;
         if (value !== 'custom' && PRESETS[value]) {
             loadPreset(value);
         }
     });
 
-    // Resize observer for responsive chart
-    window.addEventListener('resize', () => {
-        updateAll();
-        updateAllPreviews(); // keep preview widths in sync when layout changes
-    });
-    
-    // Initial draw
-    updateAll();
+    window.addEventListener('resize', render);
+    render();
 }
 
-function resetPresetSelect() {
-    presetSelect.value = 'custom';
+function render() {
+    updateMainPlot();
+    updateAllPreviews();
 }
 
-function clearWaves() {
-    waves = [];
-    waveList.html("");
-    nextId = 1; // Reset numbering when all waves are cleared
-    updateAll();
-}
-
-function loadPreset(key) {
-    clearWaves();
-    const config = PRESETS[key];
-    if (!config) return;
-
-    const newWaves = config.generate();
-    newWaves.forEach(w => {
-        addWave(w);
-    });
-}
-
-function getDimensions(element) {
-    if (!element) return { width: 0, height: 0, innerWidth: 0, innerHeight: 0 };
-    const rect = element.getBoundingClientRect();
-    return {
-        width: rect.width,
-        height: rect.height,
-        innerWidth: Math.max(0, rect.width - MARGIN.left - MARGIN.right),
-        innerHeight: Math.max(0, rect.height - MARGIN.top - MARGIN.bottom)
-    };
-}
-
+// State Actions
 function addWave(params = null) {
-    const id = nextId++;
-    const color = colors[(id - 1) % colors.length];
+    const id = state.nextId++;
+    const color = state.colors[(id - 1) % state.colors.length];
     
-    let wave;
-    if (params) {
-        wave = { id, color, ...params };
-    } else {
-        wave = {
-            id,
-            amplitude: 1.0,
-            frequency: 1.0,
-            phase: 0.0,
-            color
-        };
-    }
+    const wave = params 
+        ? { id, color, ...params }
+        : { id, color, amplitude: 1.0, frequency: 1.0, phase: 0.0 };
     
-    waves.push(wave);
-    renderWaveCard(wave);
-    updateAll();
+    state.waves.push(wave);
+    createWaveCard(wave);
+    render();
 }
 
 function removeWave(id) {
-    waves = waves.filter(w => w.id !== id);
+    state.waves = state.waves.filter(w => w.id !== id);
     d3.select(`#wave-${id}`).remove();
+    if (state.waves.length === 0) state.nextId = 1;
     resetPresetSelect();
-    if (waves.length === 0) {
-        nextId = 1; // Reset numbering when no waves remain
-    }
-    updateAll();
+    render();
 }
 
-function renderWaveCard(wave) {
-    const card = waveList.append("div")
-        .attr("class", "wave-card")
-        .attr("id", `wave-${wave.id}`)
-        .style("border-left-color", wave.color);
-
-    const header = card.append("div").attr("class", "wave-header");
+function loadPreset(key) {
+    state.waves = [];
+    state.nextId = 1;
+    selectors.waveList.html("");
     
-    const title = header.append("div").attr("class", "wave-title");
-    title.append("span")
-        .attr("class", "wave-color-indicator")
-        .style("background-color", wave.color);
-    title.append("span").text(`Wave ${wave.id}`);
-
-    header.append("button")
-        .attr("class", "remove-btn")
-        .html("&times;")
-        .attr("title", "Remove Wave")
-        .on("click", () => removeWave(wave.id));
-
-    // Controls
-    addControl(card, wave, "Amplitude", "amplitude", 0, 5, 0.01);
-    addControl(card, wave, "Frequency", "frequency", 0.1, 10, 0.1);
-    // Phase: 0 to 2π with 0.01π increments
-    addControl(card, wave, "Phase", "phase", 0, 2 * Math.PI, Math.PI / 100);
-
-    // Preview Plot Container
-    card.append("div")
-        .attr("id", `preview-${wave.id}`)
-        .attr("class", "preview-plot");
-        
-    updateWavePreview(wave);
+    const newWaves = PRESETS[key].generate();
+    newWaves.forEach(w => addWave(w));
 }
 
-function updateAllPreviews() {
-    waves.forEach(w => updateWavePreview(w));
+function resetPresetSelect() {
+    selectors.presetSelect.value = 'custom';
 }
 
-function addControl(card, wave, label, property, min, max, step) {
-    const group = card.append("div").attr("class", "control-group");
-    const labelEl = group.append("label");
-    labelEl.append("span").text(label);
-    const formatVal = (prop, val) => {
-        if (prop === "phase") {
-            return (val / Math.PI).toFixed(2) + PI_SYM;
-        }
-        return val.toFixed(2);
-    };
-    const valueDisplay = labelEl.append("span").text(formatVal(property, wave[property]));
-    
-    group.append("input")
-        .attr("type", "range")
-        .attr("min", min)
-        .attr("max", max)
-        .attr("step", step)
-        .attr("value", wave[property])
-        .on("input", function() {
-            const val = parseFloat(this.value);
-            wave[property] = val;
-            valueDisplay.text(formatVal(property, val));
-            updateWavePreview(wave);
-            resetPresetSelect(); // Changing a value makes it custom
-            updateAll();
-        });
-}
-
-function updateWavePreview(wave) {
-    const containerId = `#preview-${wave.id}`;
-    const container = d3.select(containerId);
-    if (container.empty()) return;
-    
-    container.html(""); // Clear
-
-    const node = container.node();
-    const rect = node.getBoundingClientRect();
-    const style = getComputedStyle(node);
+// Visualization Utilities
+function getInnerDimensions(element, margin) {
+    const rect = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
     const borderX = parseFloat(style.borderLeftWidth) + parseFloat(style.borderRightWidth);
     const borderY = parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
-    const width = rect.width - borderX;
-    const height = rect.height - borderY; // use inner height to keep vertical inset symmetric
-    const marginY = 5; // Top/bottom inset to keep stroke off edges
-    if (!width || width <= 0) return; // guard against zero width during layout transitions
-
-    const svg = container.append("svg")
-        .attr("width", width)
-        .attr("height", height);
-
-    const xScale = d3.scaleLinear()
-        .domain([X_MIN, X_MAX])
-        .range([PREVIEW_INSET, width - PREVIEW_INSET]);
-
-    // Fixed Y scale for preview to show relative amplitude changes
-    const yScale = d3.scaleLinear()
-        .domain([-5, 5]) 
-        .range([height - marginY, marginY]);
-
-    // Evenly spaced samples including exact endpoints to avoid overshoot
-    const data = d3.range(PREVIEW_POINTS).map(i => {
-        const t = i / (PREVIEW_POINTS - 1);
-        const x = X_MIN + t * (X_MAX - X_MIN);
-        return {
-            x,
-            y: wave.amplitude * Math.sin(wave.frequency * x + wave.phase)
-        };
-    });
-
-    const line = d3.line()
-        .x(d => xScale(d.x))
-        .y(d => yScale(d.y));
-
-    svg.append("path")
-        .datum(data)
-        .attr("fill", "none")
-        .attr("stroke", wave.color)
-        .attr("stroke-width", 2)
-        .attr("d", line);
+    const w = rect.width - borderX;
+    const h = rect.height - borderY;
+    
+    return {
+        width: w,
+        height: h,
+        innerWidth: Math.max(0, w - (margin.left || 0) - (margin.right || 0)),
+        innerHeight: Math.max(0, h - (margin.top || 0) - (margin.bottom || 0))
+    };
 }
 
-function updateAll() {
-    const container = document.getElementById('plot-container');
-    if (!container) return;
-    
-    // Clear previous
-    mainPlotContainer.html(""); 
-
-    const { width, height, innerWidth, innerHeight } = getDimensions(container);
-
-    const svg = mainPlotContainer.append("svg")
-        .attr("width", width)
-        .attr("height", height)
-        .append("g")
-        .attr("transform", `translate(${MARGIN.left},${MARGIN.top})`);
-
-    // X Scale
-    const xScale = d3.scaleLinear()
-        .domain([X_MIN, X_MAX])
-        .range([0, innerWidth]);
-
-    // Calculate Data
-    const step = (X_MAX - X_MIN) / (POINTS - 1);
-    const data = d3.range(X_MIN, X_MAX + step / 2, step).map(x => {
-        let y = 0;
-        waves.forEach(w => {
-            y += w.amplitude * Math.sin(w.frequency * x + w.phase);
-        });
-        return { x, y };
-    });
-
-    // Y Scale (Dynamic based on data, with minimum range to prevent flat line looking weird)
-    const yMaxData = d3.max(data, d => Math.abs(d.y)) || 0.1;
-    // Ensure we have some space
-    const yMax = Math.max(yMaxData, 2); 
-    
-    const yScale = d3.scaleLinear()
-        .domain([-yMax * 1.1, yMax * 1.1]) // Add 10% padding
-        .range([innerHeight, 0]);
-
-    // Axes
-    const xTicks = d3.range(X_MIN, X_MAX + Math.PI / 4, Math.PI / 2); // 0, π/2, π, ...
-    const xAxis = d3.axisBottom(xScale)
-        .tickValues(xTicks)
-        .tickFormat(d => (d / Math.PI).toFixed(1) + PI_SYM);
-        
-    svg.append("g")
-        .attr("class", "axis")
-        .attr("transform", `translate(0,${innerHeight / 2})`) // Center X axis
-        .call(xAxis);
-    
-    svg.append("g")
-        .attr("class", "axis")
-        .call(d3.axisLeft(yScale));
-
-    // Zero line (X axis visual guide if the axis is moved or customized)
-    // The axis above is already centered, so that's the zero line.
-
-    // Line Generator
+function drawLine(container, data, xScale, yScale, color, strokeWidth = 2) {
     const line = d3.line()
         .x(d => xScale(d.x))
         .y(d => yScale(d.y))
         .curve(d3.curveMonotoneX);
 
-    // Draw Sum Line
-    svg.append("path")
+    container.append("path")
         .datum(data)
         .attr("fill", "none")
-        .attr("stroke", "#fff")
-        .attr("stroke-width", 3)
+        .attr("stroke", color)
+        .attr("stroke-width", strokeWidth)
         .attr("d", line);
-        
-    // Legend / Info
-    svg.append("text")
-        .attr("x", innerWidth - 10)
-        .attr("y", 0)
-        .attr("text-anchor", "end")
-        .attr("fill", "#888")
-        .style("font-size", "14px")
-        .text(`Superposition of ${waves.length} wave${waves.length !== 1 ? 's' : ''}`);
-
-    // Keep previews aligned with current layout width
-    updateAllPreviews();
 }
 
-// Start application
+// Rendering Logic
+function createWaveCard(wave) {
+    const card = selectors.waveList.append("div")
+        .attr("class", "wave-card")
+        .attr("id", `wave-${wave.id}`)
+        .style("border-left-color", wave.color);
+
+    const header = card.append("div").attr("class", "wave-header");
+    const title = header.append("div").attr("class", "wave-title");
+    title.append("span").attr("class", "wave-color-indicator").style("background-color", wave.color);
+    title.append("span").text(`Wave ${wave.id}`);
+
+    header.append("button")
+        .attr("class", "remove-btn")
+        .html("&times;")
+        .on("click", () => removeWave(wave.id));
+
+    addControl(card, wave, "Amplitude", "amplitude", 0, 5, 0.01);
+    addControl(card, wave, "Frequency", "frequency", 0.1, 10, 0.1);
+    // Phase: 0 to 2π with 0.01π increments. Added small epsilon to max to ensure 2.00π is reachable.
+    addControl(card, wave, "Phase", "phase", 0, 2 * Math.PI + 0.001, Math.PI / 100);
+
+    card.append("div").attr("id", `preview-${wave.id}`).attr("class", "preview-plot");
+    updateWavePreview(wave);
+}
+
+function addControl(card, wave, label, prop, min, max, step) {
+    const group = card.append("div").attr("class", "control-group");
+    const labelEl = group.append("label");
+    labelEl.append("span").text(label);
+    
+    const format = (v) => prop === "phase" ? (v / Math.PI).toFixed(2) + CONFIG.PI_SYM : v.toFixed(2);
+    const display = labelEl.append("span").text(format(wave[prop]));
+    
+    group.append("input")
+        .attr("type", "range")
+        .attr("min", min).attr("max", max).attr("step", step)
+        .attr("value", wave[prop])
+        .on("input", function() {
+            let val = parseFloat(this.value);
+            // Clamp phase to exactly 2π if it goes slightly over due to epsilon
+            if (prop === "phase" && val > 2 * Math.PI) val = 2 * Math.PI;
+            
+            wave[prop] = val;
+            display.text(format(wave[prop]));
+            updateWavePreview(wave);
+            resetPresetSelect();
+            updateMainPlot();
+        });
+}
+
+function updateWavePreview(wave) {
+    const container = d3.select(`#preview-${wave.id}`);
+    if (container.empty()) return;
+    container.html("");
+
+    const dims = getInnerDimensions(container.node(), { left: CONFIG.PREVIEW_INSET, right: CONFIG.PREVIEW_INSET, top: CONFIG.PREVIEW_Y_MARGIN, bottom: CONFIG.PREVIEW_Y_MARGIN });
+    if (dims.width <= 0) return;
+
+    const svg = container.append("svg").attr("width", dims.width).attr("height", dims.height);
+    const xScale = d3.scaleLinear().domain([CONFIG.X_MIN, CONFIG.X_MAX]).range([CONFIG.PREVIEW_INSET, dims.width - CONFIG.PREVIEW_INSET]);
+    const yScale = d3.scaleLinear().domain([-5, 5]).range([dims.height - CONFIG.PREVIEW_Y_MARGIN, CONFIG.PREVIEW_Y_MARGIN]);
+
+    drawLine(svg, WaveMath.generatePoints([wave], CONFIG.PREVIEW_POINTS), xScale, yScale, wave.color);
+}
+
+function updateAllPreviews() {
+    state.waves.forEach(updateWavePreview);
+}
+
+function updateMainPlot() {
+    const container = document.getElementById('plot-container');
+    if (!container) return;
+    selectors.mainPlot.html("");
+
+    const dims = getInnerDimensions(container, CONFIG.MARGIN);
+    const svg = selectors.mainPlot.append("svg").attr("width", dims.width).attr("height", dims.height)
+        .append("g").attr("transform", `translate(${CONFIG.MARGIN.left},${CONFIG.MARGIN.top})`);
+
+    const xScale = d3.scaleLinear().domain([CONFIG.X_MIN, CONFIG.X_MAX]).range([0, dims.innerWidth]);
+    const data = WaveMath.generatePoints(state.waves, CONFIG.POINTS);
+    const yMax = Math.max(d3.max(data, d => Math.abs(d.y)) || 0.1, 2);
+    const yScale = d3.scaleLinear().domain([-yMax * 1.1, yMax * 1.1]).range([dims.innerHeight, 0]);
+
+    // Axes
+    const ticks = d3.range(CONFIG.X_MIN, CONFIG.X_MAX + Math.PI / 4, Math.PI / 2);
+    const xAxis = d3.axisBottom(xScale).tickValues(ticks).tickFormat(d => (d / Math.PI).toFixed(1) + CONFIG.PI_SYM);
+    
+    svg.append("g").attr("class", "axis").attr("transform", `translate(0,${dims.innerHeight / 2})`).call(xAxis);
+    svg.append("g").attr("class", "axis").call(d3.axisLeft(yScale));
+
+    drawLine(svg, data, xScale, yScale, "#fff", 3);
+
+    svg.append("text").attr("x", dims.innerWidth - 10).attr("y", 0).attr("text-anchor", "end").attr("fill", "#888")
+        .style("font-size", "14px").text(`Superposition of ${state.waves.length} wave${state.waves.length !== 1 ? 's' : ''}`);
+}
+
 init();
