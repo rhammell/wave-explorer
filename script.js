@@ -17,7 +17,8 @@ const state = {
     colors: [
         '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98FB98', 
         '#DDA0DD', '#F0E68C', '#87CEFA'
-    ]
+    ],
+    showComponentWaves: false
 };
 
 // Math Helpers
@@ -261,7 +262,20 @@ function updateMainPlot() {
 
     const xScale = d3.scaleLinear().domain([CONFIG.X_MIN, CONFIG.X_MAX]).range([0, dims.innerWidth]);
     const data = WaveMath.generatePoints(state.waves, CONFIG.POINTS);
-    const yMax = Math.max(d3.max(data, d => Math.abs(d.y)) || 0.1, 2);
+
+    // If showing component waves, compute their series for drawing and bounds
+    let componentSeries = [];
+    if (state.showComponentWaves) {
+        componentSeries = state.waves.map(w => ({ wave: w, data: WaveMath.generatePoints([w], CONFIG.POINTS) }));
+    }
+
+    // Compute bounds across combined and (optionally) component waves
+    const combinedMax = d3.max(data, d => Math.abs(d.y)) || 0.1;
+    const compMax = state.showComponentWaves && componentSeries.length
+        ? d3.max(componentSeries.flatMap(s => s.data), d => Math.abs(d.y)) || 0
+        : 0;
+    const yMax = Math.max(combinedMax, compMax, 2);
+
     const yScale = d3.scaleLinear().domain([-yMax * 1.1, yMax * 1.1]).range([dims.innerHeight, 0]);
 
     // Axes
@@ -271,10 +285,57 @@ function updateMainPlot() {
     svg.append("g").attr("class", "axis").attr("transform", `translate(0,${dims.innerHeight / 2})`).call(xAxis);
     svg.append("g").attr("class", "axis").call(d3.axisLeft(yScale));
 
+    // Optionally draw component waves
+    if (state.showComponentWaves) {
+        componentSeries.forEach(s => {
+            drawLine(svg, s.data, xScale, yScale, s.wave.color, 2);
+        });
+    }
+
+    // Draw combined line on top
     drawLine(svg, data, xScale, yScale, "#fff", 3);
 
-    svg.append("text").attr("x", dims.innerWidth - 10).attr("y", 0).attr("text-anchor", "end").attr("fill", "#888")
+    svg.append("text").attr("x", dims.innerWidth - 10).attr("y", 0).attr("text-anchor", "end").attr("fill", "#ccc")
         .style("font-size", "14px").text(`Superposition of ${state.waves.length} wave${state.waves.length !== 1 ? 's' : ''}`);
+
+    // Toggle for component waves inside the SVG, under the legend (checkbox only clickable)
+    const toggleGroup = svg.append("g")
+        .attr("class", "component-toggle")
+        .attr("transform", `translate(${dims.innerWidth - 10}, 24)`);
+
+    const checkboxSize = 12;
+    const gap = 4;
+    const labelText = "Show component waves";
+
+    // Label right-aligned with the legend text
+    const label = toggleGroup.append("text")
+        .attr("x", 0) // right edge aligned with legend
+        .attr("y", -3)
+        .attr("fill", "#888")
+        .attr("text-anchor", "end")
+        .style("font-size", "12px")
+        .text(labelText);
+
+    // Measure label width to place checkbox dynamically
+    const labelWidth = label.node().getBBox().width;
+    const checkboxX = -(checkboxSize + gap + labelWidth);
+
+    // Checkbox (click target) placed to the left of the text with spacing
+    toggleGroup.append("rect")
+        .attr("x", checkboxX)
+        .attr("y", -13)
+        .attr("width", checkboxSize)
+        .attr("height", checkboxSize)
+        .attr("rx", 2)
+        .attr("fill", state.showComponentWaves ? "#5cb0ff" : "#222")
+        .attr("stroke", "#888")
+        .style("cursor", "pointer")
+        .on("click", handleToggle);
+
+    function handleToggle() {
+        state.showComponentWaves = !state.showComponentWaves;
+        updateMainPlot();
+    }
 }
 
 init();
