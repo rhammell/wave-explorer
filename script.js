@@ -185,7 +185,7 @@ function createWaveCard(wave) {
         .on("click", () => removeWave(wave.id));
 
     addControl(card, wave, "Amplitude", "amplitude", 0, 5, 0.01);
-    addControl(card, wave, "Frequency", "frequency", 0.1, 10, 0.1);
+    addControl(card, wave, "Frequency", "frequency", 1, 10, 0.1);
     // Phase: use integer ticks (0..200) mapped to radians (0..2π in 0.01π steps)
     addControl(card, wave, "Phase", "phaseTicks", 0, 200, 1);
 
