@@ -9,7 +9,7 @@ Live demo: https://rhammell.github.io/wave-explorer/
 ## Features
 - Add unlimited sine waves with individual amplitude, frequency, and phase controls
 - Real-time superposition plot with responsive resizing
-- Toggle to overlay component waves on the main plot, colored to match their controls
+- Toggle to overlay component waves on the main plot
 - Quick presets to approximate square, sawtooth, and triangle waves via Fourier components
 - Per-wave mini previews and easy removal
 
@@ -29,6 +29,7 @@ python3 -m http.server 8000
 - **Sliders**: Adjust amplitude, frequency, and phase; updates are immediate
 - **Presets**: Choose square, sawtooth, or triangle; replaces current waves with preset series
 - **Remove (×)**: Delete an individual wave
+- **Component waves**: Toggle overlay of individual component waves on the main plot
 
 ## Tech
 - HTML, CSS, JavaScript
