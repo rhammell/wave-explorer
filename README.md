@@ -9,7 +9,7 @@ Live demo: https://rhammell.github.io/wave-explorer/
 ## Features
 - Add unlimited sine waves with individual amplitude, frequency, and phase controls
 - Real-time superposition plot with responsive resizing
-- Toggle to overlay component waves on the main plot
+- Overlay component waves to understand their individual contribution
 - Quick presets to approximate square, sawtooth, and triangle waves via Fourier components
 - Per-wave mini previews and easy removal
 
