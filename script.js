@@ -186,8 +186,8 @@ function createWaveCard(wave) {
 
     addControl(card, wave, "Amplitude", "amplitude", 0, 5, 0.01);
     addControl(card, wave, "Frequency", "frequency", 0.1, 10, 0.1);
-    // Phase: 0 to 2π with 0.01π increments. Added small epsilon to max to ensure 2.00π is reachable.
-    addControl(card, wave, "Phase", "phase", 0, 2 * Math.PI + 0.001, Math.PI / 100);
+    // Phase: use integer ticks (0..200) mapped to radians (0..2π in 0.01π steps)
+    addControl(card, wave, "Phase", "phaseTicks", 0, 200, 1);
 
     card.append("div").attr("id", `preview-${wave.id}`).attr("class", "preview-plot");
     updateWavePreview(wave);
@@ -198,20 +198,33 @@ function addControl(card, wave, label, prop, min, max, step) {
     const labelEl = group.append("label");
     labelEl.append("span").text(label);
     
-    const format = (v) => prop === "phase" ? (v / Math.PI).toFixed(2) + CONFIG.PI_SYM : v.toFixed(2);
-    const display = labelEl.append("span").text(format(wave[prop]));
+    const isPhaseTicks = prop === "phaseTicks";
+    const toRadians = ticks => (ticks / 100) * Math.PI;
+    const fromRadiansToTicks = rad => Math.round((rad / Math.PI) * 100);
+    const format = v => isPhaseTicks ? (toRadians(v) / Math.PI).toFixed(2) + CONFIG.PI_SYM : v.toFixed(2);
+
+    // Initialize phase ticks from existing phase value
+    if (isPhaseTicks) {
+        if (typeof wave.phase !== "number") wave.phase = 0;
+        wave.phaseTicks = fromRadiansToTicks(wave.phase);
+    }
+
+    const display = labelEl.append("span").text(format(isPhaseTicks ? wave.phaseTicks : wave[prop]));
     
     group.append("input")
         .attr("type", "range")
         .attr("min", min).attr("max", max).attr("step", step)
-        .attr("value", wave[prop])
+        .attr("value", isPhaseTicks ? wave.phaseTicks : wave[prop])
         .on("input", function() {
-            let val = parseFloat(this.value);
-            // Clamp phase to exactly 2π if it goes slightly over due to epsilon
-            if (prop === "phase" && val > 2 * Math.PI) val = 2 * Math.PI;
-            
-            wave[prop] = val;
-            display.text(format(wave[prop]));
+            if (isPhaseTicks) {
+                const ticks = parseInt(this.value, 10);
+                wave.phaseTicks = ticks;
+                wave.phase = toRadians(ticks);
+                display.text(format(ticks));
+            } else {
+                wave[prop] = parseFloat(this.value);
+                display.text(format(wave[prop]));
+            }
             updateWavePreview(wave);
             resetPresetSelect();
             updateMainPlot();
